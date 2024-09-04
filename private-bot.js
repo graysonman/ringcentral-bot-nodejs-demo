@@ -76,46 +76,21 @@ async function loadSavedTokens(){
 
 
 // Handle authentication for a private bot
-//
-// When a private bot is installed, RingCentral sends an access token to the bot
-// via an HTTP POST request through the specified redirect url. When the bot receives
-// the access token, it can use the token to post messages to bot users.
-//
-// In this tutorial, we store the access token in a file so that we can reuse it
-// every time we terminate and restart the bot.
-
-// If the access token is lost, you will need to remove and reinstall the bot in order
-// to obtain a new access token.
-
-// In a real production implementation, the acess token should be saved in a more secure
-// place and persistent so that it can be reliably re-used if the bot is restarted.
 app.post('/oauth', async function (req, res) {
   console.log("Private bot being installed");
   if (req.body.access_token) {
     res.status(200).send('')
-    // Bot access token is almost permanent. Thus, there is no need for a refresh token!
-    // For calling RC Team Messaging API to post messages using the RingCentral JS SDK, we need
-    // to create a token object and set it to the SDK's platform instance.
-
-    // First, we get an empty token object from the platform instance, then we assign the
-    // access token, the token type and other fake values to satify the SDK's tokens syntax.
     var tokenObj = platform.auth().data();
     tokenObj.access_token = req.body.access_token;
     tokenObj.token_type = "bearer"
     tokenObj.expires_in = 100000000000;
     tokenObj.refresh_token = 'xxx';
     tokenObj.refresh_token_expires_in = 10000000000;
-
-    // Finally, we set the token object back to the platform instance and also save it to a file
-    // for reuse.
     await platform.auth().setData(tokenObj);
     console.log( "Save tokens to a local file for reuse" )
     fs.writeFileSync( TOKEN_TEMP_FILE, JSON.stringify( tokenObj ) )
 
     console.log("Bot installation done")
-    // The bot must subscribe for Team Messaging notifications so that it can receive messages
-    // and other important event notifications from bot users and from RingCentral server.
-    // Cause a second delay to make sure the access token is fully populated
     console.log("Subscribe to Webhooks notification")
     subscribeToEvents()
   }else{
@@ -123,9 +98,6 @@ app.post('/oauth', async function (req, res) {
   }
 });
 
-// Callback method received after subscribing to webhook. This method handles webhook
-// notifications and will be invoked when a user sends a message to your bot, and when
-// the bot is added to/removed from a group or a team etc.
 app.post('/webhook-callback', async function (req, res) {
   var validationToken = req.get('Validation-Token');
   if (validationToken) {
@@ -140,24 +112,42 @@ app.post('/webhook-callback', async function (req, res) {
     console.log("Received user's message: " + body.text);
     if (req.body.ownerId == body.creatorId) {
       console.log("Ignoring message posted by bot.");
-    } else if (body.text == "ping") {
-      send_message( body.groupId, "pong" )
-      // Add more bot commands here by training your bot to respond to different keywords
-      //} else if (req.body.body.text == "some keyword") {
-      // send_message( body.groupId, "reply message" )
-    } else if (body.text == "hello") {
-      var card = make_hello_world_card(null)
-      send_card( body.groupId, card )
-    } else {
-      var message = `I do not understand ${body.text}`
-      send_message( body.groupId, message )
+    } else if (body.text.includes("lunch") && body.text.includes("any")) {
+
+      const restaurants = [
+        "Five Guys",
+        "Starbird",
+        "Cheese Steak Shop",
+        "Luigis",
+        "Chipotle",
+        "Back 40",
+        "Habbit",
+        "Round Table",
+        "Wing Stop",
+        "Panda Express",
+        "Los Panchos",
+        "Lunch at 1350",
+        "Kinders",
+        "Hawaiian"
+      ];
+
+      // Randomly select a restaurant from the array
+      const randomIndex = Math.floor(Math.random() * restaurants.length);
+      const lunchIdea = restaurants[randomIndex];
+
+      send_message( body.groupId, lunchIdea )
+    } else if (body.text.includes("docs.google")) {
+      send_message( body.groupId, "Man I was really hoping for Ruth Chris today..." )
     }
+
   } else if (req.body.body.eventType == 'Delete'){
     console.log('Bot is being uninstalled by a user => clean up resources')
     // Bot is being uninstalled by a user => clean up resouce
     // clear local file/database
     fs.unlinkSync(TOKEN_TEMP_FILE)
     fs.unlinkSync(SUBSCRIPTION_ID_TEMP_FILE)
+  } else if (req.body.body.eventType == 'GroupJoined'){
+    console.log('Bot is being installed by a user')
   } else {
     console.log("Event type:", req.body.body.eventType)
     console.log(req.body.body)
@@ -185,8 +175,6 @@ async function subscribeToEvents(){
     var resp = await platform.post('/restapi/v1.0/subscription', requestData)
     var jsonObj = await resp.json()
     console.log('Team Messaging events notifications subscribed successfully.');
-    // Save the subscription id to a file so that we can check its status every time the
-    // bot is restarted.
     fs.writeFileSync( SUBSCRIPTION_ID_TEMP_FILE, jsonObj.id )
     console.log('Your bot is ready for conversations ...');
   }catch (e) {
@@ -227,20 +215,6 @@ async function checkWebhooksSubscription(subscriptionId) {
   }
 }
 
-// This handler is called when a user submits data from an adaptive card
-app.post('/user-submit', function (req, res) {
-  console.log( "Received card event." )
-  var body = req.body
-  if (body.data.path == 'new-card'){
-    var card = make_new_name_card( body.data.hellotext )
-    send_card( body.conversation.id, card)
-  }else if (body.data.path == 'update-card'){
-    var card = make_hello_world_card( body.data.hellotext )
-    update_card( body.card.id, card )
-  }
-  res.status(200).end();
-});
-
 // Post a message to a chat
 async function send_message( groupId, message ) {
   console.log("Posting response to group: " + groupId);
@@ -250,105 +224,5 @@ async function send_message( groupId, message ) {
     })
   }catch(e) {
     console.log(e)
-  }
-}
-
-// Send an adaptive card to a chat
-async function send_card( groupId, card ) {
-  console.log("Posting a card to group: " + groupId);
-  try {
-    var resp = await platform.post(`/restapi/v1.0/glip/chats/${groupId}/adaptive-cards`, card)
-  }catch (e) {
-    console.log(e)
-  }
-}
-
-// Update an adaptive card
-async function update_card( cardId, card ) {
-  console.log("Updating card...");
-  try {
-    var resp = await platform.put(`/restapi/v1.0/glip/adaptive-cards/${cardId}`, card)
-  }catch (e) {
-    console.log(e.message)
-  }
-}
-
-function make_hello_world_card(name) {
-  var card = {
-    type: "AdaptiveCard",
-    $schema: "http://adaptivecards.io/schemas/adaptive-card.json",
-    version: "1.3",
-    body: [
-      {
-        type: "TextBlock",
-        size: "Medium",
-        weight: "Bolder",
-        text: "Hello World"
-      },
-      {
-        type: "TextBlock",
-        text: "Enter your name in the field below so that I can say hello.",
-        wrap: true
-      },
-      {
-        type: "Input.Text",
-        id: "hellotext",
-        placeholder: "Enter your name"
-      },
-      {
-        type: "ActionSet",
-        actions: [
-          {
-            type: "Action.Submit",
-            title: "Send a new card",
-            data: {
-              path: "new-card"
-            }
-          },
-          {
-            type: "Action.Submit",
-            title: "Update this card",
-            data: {
-              path: "update-card"
-            }
-          }
-        ]
-      }
-    ]
-  }
-  if (name){
-    card.body.push({
-      type: "Container",
-      separator: true,
-      items: [
-        {
-          type: "TextBlock",
-          text: `Hello ${name}`,
-          wrap: true
-        }
-      ]
-    })
-  }
-  return card
-}
-
-function make_new_name_card(name) {
-  return {
-    "type": "AdaptiveCard",
-    "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
-    "version": "1.3",
-    "body": [
-      {
-        "type": "TextBlock",
-        "size": "Medium",
-        "weight": "Bolder",
-        "text": "Hello World"
-      },
-      {
-        "type": "TextBlock",
-        "text": `Hello ${name}`,
-        "wrap": true
-      }
-    ]
   }
 }
