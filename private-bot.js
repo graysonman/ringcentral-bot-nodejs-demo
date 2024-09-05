@@ -112,7 +112,7 @@ app.post('/webhook-callback', async function (req, res) {
     console.log("Received user's message: " + body.text);
     if (req.body.ownerId == body.creatorId) {
       console.log("Ignoring message posted by bot.");
-    } else if (body.text.includes("lunch") && body.text.includes("any")) {
+    } else if (body.text.includes("lunch") && (body.text.includes("any")||(body.text.includes("suggestion")))) {
 
       const restaurants = [
         "Five Guys",
