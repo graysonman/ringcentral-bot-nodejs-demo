@@ -112,8 +112,25 @@ app.post('/webhook-callback', async function (req, res) {
     console.log("Received user's message: " + body.text);
     if (req.body.ownerId == body.creatorId) {
       console.log("Ignoring message posted by bot.");
-    } else if (body.text.includes("lunch") && (body.text.includes("any")||(body.text.includes("suggestion")))) {
-
+      //catch other bots responses and closes when a poll is made
+    } else if(body.creatorId === "1058339032"){
+      send_message( body.groupId, "Man I hate that other bot. He always doesn't let me choose. :(" )
+      setTimeout(() => process.exit(0), 5000);
+      //anything that comes through as null ignore
+    } else if(body.text === null){
+      return;
+    } else if (
+      // Check for any keywords related to lunch or food
+      ["lunch", "food", "meal", "eat", "dine", "dining"].some(word => body.text.toLowerCase().includes(word)) && 
+    
+      // Check if creatorId matches or if the text includes specific words
+      (body.creatorId === "3284473020" || 
+       ["any", "suggestion", "what", "discussion", "idea", "recommend", "option", "pick", "decide"].some(word => body.text.toLowerCase().includes(word)))
+    ) {
+      if (body.text.includes("docs.google")) {
+        send_message( body.groupId, "Man I was really hoping for Ruth Chris today..." )
+        return
+      }
       const restaurants = [
         "Five Guys",
         "Starbird",
@@ -121,14 +138,16 @@ app.post('/webhook-callback', async function (req, res) {
         "Luigis",
         "Chipotle",
         "Back 40",
-        "Habbit",
+        "Habit",
         "Round Table",
         "Wing Stop",
         "Panda Express",
         "Los Panchos",
         "Lunch at 1350",
         "Kinders",
-        "Hawaiian"
+        "Hawaiian",
+        "Diggers",
+        "Hot Boys"
       ];
 
       // Randomly select a restaurant from the array
@@ -136,9 +155,11 @@ app.post('/webhook-callback', async function (req, res) {
       const lunchIdea = restaurants[randomIndex];
 
       send_message( body.groupId, lunchIdea )
-    } else if (body.text.includes("docs.google")) {
-      send_message( body.groupId, "Man I was really hoping for Ruth Chris today..." )
-    }
+    } else if(
+      (body.text.includes("lunch") || body.text.includes("Lunch")) && 
+      (body.text.includes("friday")||body.text.includes("Friday"))){
+        send_message( body.groupId, "We should change it to have lunch every Friday!" )
+    } 
 
   } else if (req.body.body.eventType == 'Delete'){
     console.log('Bot is being uninstalled by a user => clean up resources')
