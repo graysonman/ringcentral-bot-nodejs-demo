@@ -119,6 +119,9 @@ app.post('/webhook-callback', async function (req, res) {
       //anything that comes through as null ignore
     } else if(body.text === null){
       return;
+    } else if (body.text.includes("docs.google")) {
+      send_message( body.groupId, "Man I was really hoping for Ruth Chris today..." )
+      setTimeout(() => process.exit(0), 5000);
     } else if (
       // Check for any keywords related to lunch or food
       ["lunch", "food", "meal", "eat", "dine", "dining"].some(word => body.text.toLowerCase().includes(word)) && 
@@ -127,10 +130,7 @@ app.post('/webhook-callback', async function (req, res) {
       (body.creatorId === "3284473020" || 
        ["any", "suggestion", "what", "discussion", "idea", "recommend", "option", "pick", "decide"].some(word => body.text.toLowerCase().includes(word)))
     ) {
-      if (body.text.includes("docs.google")) {
-        send_message( body.groupId, "Man I was really hoping for Ruth Chris today..." )
-        return
-      }
+      
       const restaurants = [
         "Five Guys",
         "Starbird",
